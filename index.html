@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solo Missions</title>
+  <style>
+    /* ── Tokens ── */
+    :root {
+      --canvas:          #0c0c0c;
+      --surface:         #141414;
+      --elevated:        #1e1e1e;
+      --border-subtle:   #2a2a2a;
+      --border-default:  #3d3d3d;
+      --fg:              #fafaf9;
+      --fg-body:         #e7e5e4;
+      --fg-muted:        #78716c;
+      --accent:          #f97316;
+      --accent-tint:     rgba(249,115,22,0.15);
+      --accent-ring:     rgba(249,115,22,0.35);
+      --radius:          12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--canvas);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── Typography ── */
+    .display {
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+    }
+    .heading { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+    .eyebrow {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--fg-muted);
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 600; border-radius: 8px; cursor: pointer;
+      transition: background 120ms, box-shadow 120ms, transform 80ms;
+      outline: none; border: 1px solid transparent; white-space: nowrap;
+      font-family: inherit;
+    }
+    .btn:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-sm  { height: 32px; padding: 0 12px; font-size: 13px; }
+    .btn-md  { height: 42px; padding: 0 22px; font-size: 15px; }
+    .btn-lg  { height: 50px; padding: 0 30px; font-size: 16px; }
+    .btn-primary {
+      background: var(--accent); color: #0c0c0c; border-color: transparent;
+    }
+    .btn-primary:hover  { background: #fb923c; box-shadow: 0 0 0 1px var(--accent-ring); }
+    .btn-primary:active { background: #ea6c0a; transform: translateY(1px); }
+    .btn-ghost {
+      background: transparent; color: var(--fg-muted); border-color: var(--border-subtle);
+    }
+    .btn-ghost:hover { background: var(--elevated); color: var(--fg); border-color: var(--border-default); }
+
+    /* ── Input ── */
+    .input {
+      width: 100%; height: 44px; padding: 0 16px;
+      background: var(--elevated); border: 1px solid var(--border-subtle);
+      border-radius: 8px; font-size: 16px; color: var(--fg); outline: none;
+      font-family: inherit; transition: border-color 120ms, box-shadow 120ms;
+    }
+    .input::placeholder { color: var(--fg-muted); opacity: 0.6; }
+    .input:hover  { border-color: var(--border-default); }
+    .input:focus  { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+    .card:hover { border-color: var(--border-default); }
+
+    /* ── Screens ── */
+    .screen { display: none; }
+    .screen.active { display: flex; }
+
+    /* ═══════════════════════════════════ ONBOARDING ═══════════════════════════════════ */
+    #screen-onboard {
+      min-height: 100vh;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .onboard-box {
+      width: 100%; max-width: 440px;
+      display: flex; flex-direction: column; gap: 32px;
+    }
+    .onboard-header { display: flex; flex-direction: column; gap: 10px; }
+    .onboard-header .eyebrow { color: var(--accent); }
+    .onboard-header p { font-size: 16px; color: var(--fg-muted); line-height: 1.6; }
+    .onboard-row { display: flex; gap: 10px; }
+    .onboard-row .input { flex: 1; }
+
+    /* ═══════════════════════════════════ DASHBOARD ═══════════════════════════════════ */
+    #screen-dashboard {
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Nav */
+    .top-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky; top: 0;
+      background: rgba(12,12,12,0.9);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+    .nav-brand { display: flex; flex-direction: column; gap: 2px; }
+    .nav-brand .eyebrow { color: var(--accent); }
+    .nav-brand .name { font-size: 15px; font-weight: 600; color: var(--fg); }
+    .nav-stats { display: flex; gap: 16px; align-items: center; }
+    .stat-pill {
+      font-size: 12px; font-weight: 500; color: var(--fg-muted);
+      background: var(--elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px; padding: 4px 12px;
+    }
+    .stat-pill span { color: var(--accent); font-weight: 700; }
+
+    /* Hero */
+    .dashboard-hero {
+      padding: 48px 24px 32px;
+      max-width: 680px; margin: 0 auto; width: 100%;
+    }
+    .dashboard-hero .display { color: var(--fg); margin-bottom: 12px; }
+    .dashboard-hero p { font-size: 16px; color: var(--fg-muted); line-height: 1.7; }
+
+    /* Grid */
+    .missions-grid {
+      padding: 0 24px 48px;
+      max-width: 680px; margin: 0 auto; width: 100%;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+
+    .mission-card {
+      cursor: pointer;
+      padding: 20px 22px;
+      display: flex; align-items: center; gap: 18px;
+      border-radius: var(--radius);
+    }
+    .mission-card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+    .mission-card.completed { border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.04); }
+
+    .mission-icon {
+      font-size: 28px;
+      width: 52px; height: 52px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--elevated); border: 1px solid var(--border-subtle);
+      border-radius: 10px; flex-shrink: 0;
+    }
+    .mission-card.completed .mission-icon { border-color: rgba(249,115,22,0.4); background: var(--accent-tint); }
+
+    .mission-info { flex: 1; min-width: 0; }
+    .mission-title { font-size: 15px; font-weight: 600; color: var(--fg); margin-bottom: 3px; }
+    .mission-sub { font-size: 13px; color: var(--fg-muted); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mission-card.completed .mission-title { color: var(--accent); }
+
+    .mission-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .mission-badge {
+      font-size: 11px; font-weight: 600; font-family: 'SF Mono', monospace;
+      color: var(--fg-muted);
+      background: var(--elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px; padding: 3px 8px;
+    }
+    .mission-card.completed .mission-badge { color: var(--accent); border-color: rgba(249,115,22,0.4); background: var(--accent-tint); }
+
+    .mission-progress-bar {
+      width: 64px; height: 4px;
+      background: var(--border-subtle); border-radius: 2px; overflow: hidden;
+    }
+    .mission-progress-fill {
+      height: 100%; background: var(--accent); border-radius: 2px;
+      transition: width 300ms ease;
+    }
+
+    /* ═══════════════════════════════════ DETAIL ═══════════════════════════════════ */
+    #screen-detail {
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .detail-nav {
+      display: flex; align-items: center; gap: 14px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(12,12,12,0.9);
+      backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .detail-nav .btn { min-width: 36px; height: 36px; padding: 0 12px; }
+    .detail-nav-title { font-size: 15px; font-weight: 600; color: var(--fg); }
+
+    .detail-body {
+      max-width: 580px; margin: 0 auto; width: 100%;
+      padding: 36px 24px 60px;
+      display: flex; flex-direction: column; gap: 32px;
+    }
+
+    .detail-header { display: flex; flex-direction: column; gap: 12px; }
+    .detail-icon { font-size: 40px; }
+    .detail-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--fg); }
+    .detail-desc { font-size: 15px; color: var(--fg-muted); line-height: 1.7; }
+
+    /* Daily tracker */
+    .section-label {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--fg-muted); margin-bottom: 14px;
+    }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+      gap: 8px;
+    }
+    .day-cell {
+      aspect-ratio: 1;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      background: var(--elevated);
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px;
+      transition: border-color 120ms, background 120ms;
+      position: relative;
+    }
+    .day-cell:hover { border-color: var(--border-default); }
+    .day-cell.checked {
+      background: var(--accent-tint);
+      border-color: rgba(249,115,22,0.5);
+    }
+    .day-cell .day-num {
+      font-size: 13px; font-weight: 600; color: var(--fg-muted);
+    }
+    .day-cell.checked .day-num { color: var(--accent); }
+    .day-cell .check-mark { font-size: 12px; line-height: 1; }
+
+    /* Streak */
+    .streak-row {
+      display: flex; gap: 12px;
+    }
+    .streak-box {
+      flex: 1; padding: 16px 18px;
+      background: var(--elevated); border: 1px solid var(--border-subtle); border-radius: 10px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .streak-num { font-size: 28px; font-weight: 700; color: var(--accent); letter-spacing: -0.03em; }
+    .streak-lbl { font-size: 12px; color: var(--fg-muted); }
+
+    /* Oneshot */
+    .oneshot-section {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .oneshot-status {
+      padding: 20px 22px;
+      background: var(--elevated); border: 1px solid var(--border-subtle); border-radius: 10px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .oneshot-status.done {
+      background: var(--accent-tint); border-color: rgba(249,115,22,0.4);
+    }
+    .oneshot-status-label { font-size: 14px; font-weight: 600; color: var(--fg); }
+    .oneshot-status.done .oneshot-status-label { color: var(--accent); }
+    .oneshot-status-sub { font-size: 13px; color: var(--fg-muted); }
+
+    .reset-link {
+      font-size: 12px; color: var(--fg-muted); cursor: pointer;
+      text-align: center; text-decoration: underline; opacity: 0.6;
+    }
+    .reset-link:hover { opacity: 1; color: #ef4444; }
+
+    /* Completed banner */
+    .complete-banner {
+      background: var(--accent-tint);
+      border: 1px solid rgba(249,115,22,0.4);
+      border-radius: 10px;
+      padding: 18px 22px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .complete-banner .icon { font-size: 28px; }
+    .complete-banner .text { font-size: 14px; font-weight: 600; color: var(--accent); }
+    .complete-banner .sub { font-size: 13px; color: var(--fg-muted); margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ ONBOARDING ═══════════════════════ -->
+<section id="screen-onboard" class="screen active">
+  <div class="onboard-box">
+    <div class="onboard-header">
+      <p class="eyebrow">⚡ Solo Missions — First run</p>
+      <h1 class="display">What's your name?</h1>
+      <p>10 hard things. No excuses. Your name goes on the record.</p>
+    </div>
+    <div class="onboard-row">
+      <input class="input" id="name-input" type="text" placeholder="e.g. Avinash" autocomplete="off" />
+      <button class="btn btn-primary btn-md" id="name-submit" disabled>Let's go →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ DASHBOARD ═══════════════════════ -->
+<section id="screen-dashboard" class="screen">
+  <nav class="top-nav">
+    <div class="nav-brand">
+      <p class="eyebrow">⚡ Solo Missions</p>
+      <p class="name" id="nav-name"></p>
+    </div>
+    <div class="nav-stats">
+      <div class="stat-pill" id="stat-pill"><span id="stat-done">0</span> / 10 done</div>
+    </div>
+  </nav>
+
+  <div class="dashboard-hero">
+    <h1 class="display" id="hero-title">Your missions.</h1>
+    <p>Hard by design. No music, no validation, no safety net. Pick one. Start today.</p>
+  </div>
+
+  <div class="missions-grid" id="missions-grid"></div>
+</section>
+
+<!-- ═══════════════════════ DETAIL ═══════════════════════ -->
+<section id="screen-detail" class="screen">
+  <nav class="detail-nav">
+    <button class="btn btn-ghost btn-sm" id="back-btn">← Back</button>
+    <p class="detail-nav-title" id="detail-nav-title"></p>
+  </nav>
+  <div class="detail-body" id="detail-body"></div>
+</section>
+
+<script>
+  // ── Data ──────────────────────────────────────────────────────────────────
+  const MISSIONS = [
+    {
+      id: 'walk',
+      icon: '🥾',
+      title: 'Walk 30–50KM Alone',
+      sub: 'One long walk. No music, no distractions.',
+      desc: 'No music, no podcasts, no distractions. Just you and your thoughts for a full long-distance walk. Most people cannot handle their own mind for that long. Prove you can.',
+      type: 'oneshot',
+      badge: 'One shot',
+    },
+    {
+      id: 'sugar',
+      icon: '🚫',
+      title: '21 Days — Zero Sugar',
+      sub: '21 days. No cheats, no "just this once".',
+      desc: 'No sugar for 21 days — no cheat days, no exceptions. Watch how fast your brain starts begging. You are more addicted than you think. Cut the chemical. Own the craving.',
+      type: 'daily',
+      days: 21,
+      badge: '21 days',
+    },
+    {
+      id: 'silence',
+      icon: '🔕',
+      title: 'Train in Silence — 7 Days',
+      sub: '7 days. No music, no hype. Just effort.',
+      desc: 'Work out every day for 7 days with zero music or audio. No hype, no pump-up tracks. If you need noise to perform, you are weak. Learn to generate your own intensity.',
+      type: 'daily',
+      days: 7,
+      badge: '7 days',
+    },
+    {
+      id: 'wakeup',
+      icon: '⏰',
+      title: 'Wake Up at 5AM — 30 Days',
+      sub: '30 days. No snooze. No exceptions.',
+      desc: 'Wake up at 5AM every day for 30 days. No alarm delay, no snooze, no "just 5 more minutes". Discipline is not built at night — it is built in the morning before the world wakes up.',
+      type: 'daily',
+      days: 30,
+      badge: '30 days',
+    },
+    {
+      id: 'nosocial',
+      icon: '📵',
+      title: '7 Days — No Social Media',
+      sub: '7 days. No likes, no scrolling, no validation.',
+      desc: 'No social media for 7 days — no Instagram, X, TikTok, Reddit, nothing. No validation. Watch your brain panic when it has no feed to scroll. That panic is dependency. Face it.',
+      type: 'daily',
+      days: 7,
+      badge: '7 days',
+    },
+    {
+      id: 'shower',
+      icon: '🧊',
+      title: 'Cold Shower — 30 Days',
+      sub: '30 days. No warm finish. Control your breath.',
+      desc: 'Cold showers only for 30 days. No warm water to finish. The moment it hits you — control your breath. Control your breath, control your mind. Simple as that.',
+      type: 'daily',
+      days: 30,
+      badge: '30 days',
+    },
+    {
+      id: 'nophone',
+      icon: '📴',
+      title: '24 Hours — No Phone',
+      sub: 'One full day. No notifications, no dopamine.',
+      desc: 'Put the phone away for 24 straight hours. No notifications, no dopamine hits, no quick checks. The silence will feel deeply uncomfortable. That is how distracted you have become.',
+      type: 'oneshot',
+      badge: 'One shot',
+    },
+    {
+      id: 'book',
+      icon: '📖',
+      title: 'Read 1 Book in 1 Day',
+      sub: 'Start and finish a full book in 24 hours.',
+      desc: 'Read an entire book in a single day. No phones, no breaks for content, no multi-tasking. Sit down, lock in, and finish it. Prove your attention span still exists.',
+      type: 'oneshot',
+      badge: 'One shot',
+    },
+    {
+      id: 'alone',
+      icon: '🚶',
+      title: 'Go Out Alone — No Phone',
+      sub: 'No safety net. Just presence.',
+      desc: 'Go to a public place — a café, a park, a restaurant — alone and without your phone. No safety net. Sit with yourself, observe, exist. Confidence is built in exactly these moments.',
+      type: 'oneshot',
+      badge: 'One shot',
+    },
+    {
+      id: 'sleep',
+      icon: '🌙',
+      title: 'Sleep Before 10PM — 30 Days',
+      sub: '30 nights. Lights out before 10. No screens.',
+      desc: 'In bed, lights off, no screens — every night before 10PM for 30 days. Late nights are stolen mornings. Fix your sleep, fix your output. This is the foundation everything else sits on.',
+      type: 'daily',
+      days: 30,
+      badge: '30 days',
+    },
+  ]
+
+  // ── Storage ───────────────────────────────────────────────────────────────
+  const KEY_USER = 'sm:user'
+  const progressKey = id => `sm:progress:${id}`
+
+  function getUser()   { try { return JSON.parse(localStorage.getItem(KEY_USER) || 'null') } catch { return null } }
+  function saveUser(u) { localStorage.setItem(KEY_USER, JSON.stringify(u)) }
+
+  function getProgress(id) {
+    try { return JSON.parse(localStorage.getItem(progressKey(id)) || 'null') } catch { return null }
+  }
+  function saveProgress(id, data) { localStorage.setItem(progressKey(id), JSON.stringify(data)) }
+
+  // For daily missions: progress = { checkedDays: number[] }  (1-indexed day numbers)
+  // For oneshot:        progress = { completed: bool, completedAt: string }
+
+  function getDailyProgress(id) {
+    return getProgress(id) || { checkedDays: [] }
+  }
+  function getOneshotProgress(id) {
+    return getProgress(id) || { completed: false, completedAt: null }
+  }
+
+  function isMissionComplete(m) {
+    if (m.type === 'oneshot') return getOneshotProgress(m.id).completed
+    const p = getDailyProgress(m.id)
+    return p.checkedDays.length >= m.days
+  }
+
+  // ── Screens ───────────────────────────────────────────────────────────────
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
+    document.getElementById(id).classList.add('active')
+    window.scrollTo(0, 0)
+  }
+
+  // ── Onboarding ────────────────────────────────────────────────────────────
+  const nameInput  = document.getElementById('name-input')
+  const nameSubmit = document.getElementById('name-submit')
+
+  nameInput.addEventListener('input', () => {
+    nameSubmit.disabled = !nameInput.value.trim()
+  })
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && nameInput.value.trim()) completeOnboard()
+  })
+  nameSubmit.addEventListener('click', completeOnboard)
+
+  function completeOnboard() {
+    const name = nameInput.value.trim()
+    if (!name) return
+    saveUser({ name })
+    initDashboard(name)
+    showScreen('screen-dashboard')
+  }
+
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+  function initDashboard(name) {
+    document.getElementById('nav-name').textContent = name
+    document.getElementById('hero-title').textContent = `Your missions, ${name.split(' ')[0]}.`
+    renderGrid()
+  }
+
+  function renderGrid() {
+    const grid = document.getElementById('missions-grid')
+    const doneCount = MISSIONS.filter(m => isMissionComplete(m)).length
+    document.getElementById('stat-done').textContent = doneCount
+
+    grid.innerHTML = ''
+    MISSIONS.forEach(m => {
+      const done = isMissionComplete(m)
+      let progressPct = 0
+
+      if (m.type === 'daily') {
+        const p = getDailyProgress(m.id)
+        progressPct = Math.round((p.checkedDays.length / m.days) * 100)
+      } else {
+        progressPct = done ? 100 : 0
+      }
+
+      const card = document.createElement('div')
+      card.className = `card mission-card${done ? ' completed' : ''}`
+      card.innerHTML = `
+        <div class="mission-icon">${m.icon}</div>
+        <div class="mission-info">
+          <p class="mission-title">${m.title}</p>
+          <p class="mission-sub">${m.sub}</p>
+        </div>
+        <div class="mission-meta">
+          <span class="mission-badge">${done ? '✓ Done' : m.badge}</span>
+          <div class="mission-progress-bar">
+            <div class="mission-progress-fill" style="width:${progressPct}%"></div>
+          </div>
+        </div>
+      `
+      card.addEventListener('click', () => openDetail(m.id))
+      grid.appendChild(card)
+    })
+  }
+
+  // ── Detail ────────────────────────────────────────────────────────────────
+  let currentMission = null
+
+  document.getElementById('back-btn').addEventListener('click', () => {
+    renderGrid()
+    showScreen('screen-dashboard')
+  })
+
+  function openDetail(id) {
+    currentMission = MISSIONS.find(m => m.id === id)
+    document.getElementById('detail-nav-title').textContent = currentMission.title
+    renderDetail()
+    showScreen('screen-detail')
+  }
+
+  function renderDetail() {
+    const m = currentMission
+    const body = document.getElementById('detail-body')
+
+    if (m.type === 'daily') {
+      renderDailyDetail(m, body)
+    } else {
+      renderOneshotDetail(m, body)
+    }
+  }
+
+  function renderDailyDetail(m, body) {
+    const p = getDailyProgress(m.id)
+    const checked = new Set(p.checkedDays)
+    const done = checked.size >= m.days
+
+    // Streak calculation
+    let streak = 0
+    for (let d = m.days; d >= 1; d--) {
+      if (checked.has(d)) streak++
+      else break
+    }
+    // Also count longest streak from start
+    let longest = 0, cur = 0
+    for (let d = 1; d <= m.days; d++) {
+      if (checked.has(d)) { cur++; longest = Math.max(longest, cur) }
+      else cur = 0
+    }
+
+    body.innerHTML = `
+      <div class="detail-header">
+        <div class="detail-icon">${m.icon}</div>
+        <h1 class="detail-title">${m.title}</h1>
+        <p class="detail-desc">${m.desc}</p>
+      </div>
+
+      ${done ? `
+        <div class="complete-banner">
+          <div class="icon">🔥</div>
+          <div>
+            <div class="text">Mission Complete</div>
+            <div class="sub">All ${m.days} days checked. Respect.</div>
+          </div>
+        </div>
+      ` : ''}
+
+      <div>
+        <p class="section-label">Streak</p>
+        <div class="streak-row">
+          <div class="streak-box">
+            <p class="streak-num">${streak}</p>
+            <p class="streak-lbl">Current streak</p>
+          </div>
+          <div class="streak-box">
+            <p class="streak-num">${longest}</p>
+            <p class="streak-lbl">Longest streak</p>
+          </div>
+          <div class="streak-box">
+            <p class="streak-num">${checked.size}</p>
+            <p class="streak-lbl">Days done</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p class="section-label">Tap a day to check it off</p>
+        <div class="day-grid" id="day-grid"></div>
+      </div>
+
+      <p class="reset-link" id="reset-link">Reset this mission</p>
+    `
+
+    // Render day cells
+    const grid = document.getElementById('day-grid')
+    for (let d = 1; d <= m.days; d++) {
+      const cell = document.createElement('div')
+      cell.className = `day-cell${checked.has(d) ? ' checked' : ''}`
+      cell.innerHTML = `
+        <span class="day-num">${d}</span>
+        <span class="check-mark">${checked.has(d) ? '✓' : ''}</span>
+      `
+      cell.addEventListener('click', () => toggleDay(m, d))
+      grid.appendChild(cell)
+    }
+
+    document.getElementById('reset-link').addEventListener('click', () => {
+      if (confirm(`Reset "${m.title}"? All progress will be lost.`)) {
+        saveProgress(m.id, { checkedDays: [] })
+        renderDetail()
+      }
+    })
+  }
+
+  function toggleDay(m, day) {
+    const p = getDailyProgress(m.id)
+    const s = new Set(p.checkedDays)
+    if (s.has(day)) s.delete(day)
+    else s.add(day)
+    saveProgress(m.id, { checkedDays: Array.from(s) })
+    renderDetail()
+  }
+
+  function renderOneshotDetail(m, body) {
+    const p = getOneshotProgress(m.id)
+
+    body.innerHTML = `
+      <div class="detail-header">
+        <div class="detail-icon">${m.icon}</div>
+        <h1 class="detail-title">${m.title}</h1>
+        <p class="detail-desc">${m.desc}</p>
+      </div>
+
+      <div class="oneshot-section">
+        <div class="oneshot-status${p.completed ? ' done' : ''}">
+          <p class="oneshot-status-label">${p.completed ? '🔥 Completed' : 'Not started yet'}</p>
+          <p class="oneshot-status-sub">${p.completed
+            ? `Finished on ${new Date(p.completedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`
+            : 'Mark complete when you have done it. No lying to yourself.'
+          }</p>
+        </div>
+
+        ${!p.completed ? `
+          <button class="btn btn-primary btn-lg" id="mark-done-btn" style="width:100%">
+            Mark as Done ✓
+          </button>
+        ` : ''}
+
+        <p class="reset-link" id="reset-link">Reset this mission</p>
+      </div>
+    `
+
+    const doneBtn = document.getElementById('mark-done-btn')
+    if (doneBtn) {
+      doneBtn.addEventListener('click', () => {
+        saveProgress(m.id, { completed: true, completedAt: new Date().toISOString() })
+        renderDetail()
+      })
+    }
+
+    document.getElementById('reset-link').addEventListener('click', () => {
+      if (confirm(`Reset "${m.title}"?`)) {
+        saveProgress(m.id, { completed: false, completedAt: null })
+        renderDetail()
+      }
+    })
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  const user = getUser()
+  if (user && user.name) {
+    initDashboard(user.name)
+    showScreen('screen-dashboard')
+  } else {
+    showScreen('screen-onboard')
+    nameInput.focus()
+  }
+</script>
+</body>
+</html>
