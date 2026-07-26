@@ -104,11 +104,19 @@
     .input::placeholder { color: var(--fg-muted); opacity: 0.6; }
     .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 
-    /* ── Card ── */
+    /* ── Card — glass ── */
     .card {
-      background: var(--surface);
-      border: 1px solid var(--border-subtle);
+      background: rgba(17,17,17,0.48);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.06);
       border-radius: var(--radius);
+    }
+    /* slightly more opaque for deep nested surfaces */
+    .streak-box, .oneshot-box, .banner {
+      background: rgba(26,26,26,0.55) !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
 
     /* ── Screens ── */
@@ -1091,18 +1099,25 @@ function startWaterfall() {
   stopScene()
   const W = SC.width, H = SC.height
 
-  const streamCount = Math.max(18, Math.floor(W / 28))
-  const streams = Array.from({ length: streamCount }, (_, i) => ({
-    x:    (W / streamCount) * i + (Math.random() - 0.5) * 24,
-    y:    -(Math.random() * H),
-    len:  H * (0.25 + Math.random() * 0.55),
-    spd:  1.8 + Math.random() * 2.8,
-    w:    0.8 + Math.random() * 3.5,
-    op:   0.12 + Math.random() * 0.30,
-    wob:  Math.random() * Math.PI * 2,
-    wobS: 0.012 + Math.random() * 0.018,
-    wobA: 1.5 + Math.random() * 4,
-  }))
+  // Streams only on left + right edge bands so center text is clear
+  const edgeW = Math.min(W * 0.22, 120)
+  const streamCount = Math.max(14, Math.floor(edgeW / 14)) * 2
+  const half = streamCount / 2
+  const streams = Array.from({ length: streamCount }, (_, i) => {
+    const inLeft = i < half
+    const band   = inLeft ? Math.random() * edgeW : W - edgeW + Math.random() * edgeW
+    return {
+      x:    band,
+      y:    -(Math.random() * H),
+      len:  H * (0.28 + Math.random() * 0.55),
+      spd:  1.6 + Math.random() * 2.5,
+      w:    0.6 + Math.random() * 2.5,
+      op:   0.06 + Math.random() * 0.13,
+      wob:  Math.random() * Math.PI * 2,
+      wobS: 0.012 + Math.random() * 0.018,
+      wobA: 1.2 + Math.random() * 3,
+    }
+  })
 
   const mistCount = Math.floor(W / 8)
   const mist = Array.from({ length: mistCount }, () => mkMist(W, H, true))
@@ -1168,67 +1183,93 @@ function startOcean() {
   const W = SC.width, H = SC.height
   let t = 0
 
-  // Wave layers — back to front
-  const layers = [
-    { yOff: 0.62, amp: 22, wave1: 320, wave2: 200, spd: 0.45, fill: 'rgba(6,182,212,0.10)',  line: 'rgba(34,211,238,0.20)' },
-    { yOff: 0.69, amp: 18, wave1: 260, wave2: 160, spd: 0.60, fill: 'rgba(8,145,178,0.12)',  line: 'rgba(56,189,248,0.22)' },
-    { yOff: 0.76, amp: 14, wave1: 200, wave2: 130, spd: 0.80, fill: 'rgba(14,116,144,0.14)', line: 'rgba(103,232,249,0.28)' },
-    { yOff: 0.83, amp: 10, wave1: 150, wave2: 100, spd: 1.05, fill: 'rgba(20,184,166,0.16)', line: 'rgba(45,212,191,0.32)' },
-    { yOff: 0.90, amp:  6, wave1: 110, wave2:  75, spd: 1.40, fill: 'rgba(6,182,212,0.20)',  line: 'rgba(125,211,252,0.38)' },
-  ]
-
-  function waveY(l, x, t) {
-    return H * l.yOff
-      + Math.sin((x / l.wave1) + t * l.spd)                     * l.amp
-      + Math.sin((x / l.wave2) - t * l.spd * 0.73 + 1.2)        * l.amp * 0.38
-      + Math.cos((x / (l.wave1 * 1.5)) + t * l.spd * 0.5 + 0.7) * l.amp * 0.22
+  // Wave shape: mix of harmonics so it looks like real irregular swell
+  function waveY(x, t, yBase, amp, period, spd) {
+    return yBase
+      + Math.sin((x / period)        - t * spd)              * amp
+      + Math.sin((x / (period*0.6))  - t * spd * 1.5 + 1.1) * amp * 0.40
+      + Math.cos((x / (period*1.7))  + t * spd * 0.4 + 2.3) * amp * 0.20
   }
 
-  function drawLayer(l, t) {
+  // 5 layers, front-most is shallowest/brightest — all fill down to H
+  const layers = [
+    { yBase: H*0.52, amp:30, period:380, spd:0.40, fill:'rgba(5,35,60,0.55)',   line:'rgba(6,182,212,0.12)' },
+    { yBase: H*0.60, amp:25, period:300, spd:0.55, fill:'rgba(6,50,80,0.50)',   line:'rgba(8,145,178,0.18)' },
+    { yBase: H*0.68, amp:20, period:230, spd:0.75, fill:'rgba(8,70,100,0.45)',  line:'rgba(14,116,144,0.24)' },
+    { yBase: H*0.76, amp:16, period:175, spd:1.00, fill:'rgba(6,100,130,0.40)', line:'rgba(20,184,166,0.30)' },
+    { yBase: H*0.84, amp:12, period:130, spd:1.35, fill:'rgba(6,182,212,0.35)', line:'rgba(125,211,252,0.55)' },
+  ]
+
+  function drawLayer(l) {
     SCX.beginPath()
     SCX.moveTo(0, H)
-    for (let x = 0; x <= W + 4; x += 3) SCX.lineTo(x, waveY(l, x, t))
+    for (let x = 0; x <= W + 4; x += 3) SCX.lineTo(x, waveY(x, t, l.yBase, l.amp, l.period, l.spd))
     SCX.lineTo(W, H)
     SCX.closePath()
     SCX.fillStyle = l.fill
     SCX.fill()
-
-    // crest line
+    // crest highlight
     SCX.beginPath()
     for (let x = 0; x <= W + 4; x += 3) {
-      const y = waveY(l, x, t)
+      const y = waveY(x, t, l.yBase, l.amp, l.period, l.spd)
       x === 0 ? SCX.moveTo(x, y) : SCX.lineTo(x, y)
     }
-    SCX.lineWidth   = 1.5
-    SCX.strokeStyle = l.line
-    SCX.stroke()
+    SCX.lineWidth = 2; SCX.strokeStyle = l.line; SCX.stroke()
   }
 
-  // Foam dots on the front wave crest
-  const foamCount = Math.floor(W / 14)
-  const foam = Array.from({ length: foamCount }, (_, i) => ({
-    x: (W / foamCount) * i + Math.random() * 12,
-    phase: Math.random() * Math.PI * 2,
-    r: 0.8 + Math.random() * 1.8,
-    op: 0.25 + Math.random() * 0.45,
+  // Foam line on the front crest
+  const foamN = Math.floor(W / 10)
+  const foam  = Array.from({ length: foamN }, (_, i) => ({
+    x: (W / foamN) * i, phase: Math.random() * Math.PI * 2,
+    r: 1.2 + Math.random() * 2.5, op: 0.35 + Math.random() * 0.55,
   }))
+
+  // Splash particles that arc up from the crest then fall
+  const splashN = 35
+  function mkSplash() {
+    const fl = layers[layers.length - 1]
+    const x  = Math.random() * W
+    return {
+      x, y: waveY(x, t, fl.yBase, fl.amp, fl.period, fl.spd),
+      vx: (Math.random() - 0.5) * 2.5,
+      vy: -(1.5 + Math.random() * 3.5),
+      r:  0.6 + Math.random() * 1.8,
+      life: 0.7 + Math.random() * 0.3,
+      decay: 0.018 + Math.random() * 0.025,
+    }
+  }
+  const splashes = Array.from({ length: splashN }, () => mkSplash())
 
   function tick() {
     SCX.clearRect(0, 0, W, H)
     t += 0.016
 
-    // draw back-to-front
-    for (let i = 0; i < layers.length; i++) drawLayer(layers[i], t)
+    // Deep base so there's never a dark void — fills entire lower half
+    const base = SCX.createLinearGradient(0, H * 0.45, 0, H)
+    base.addColorStop(0, 'rgba(3,20,38,0)')
+    base.addColorStop(0.3, 'rgba(4,28,52,0.70)')
+    base.addColorStop(1,   'rgba(5,38,68,0.90)')
+    SCX.fillStyle = base
+    SCX.fillRect(0, 0, W, H)
 
-    // foam on front crest
+    // Wave layers back → front
+    layers.forEach(drawLayer)
+
+    // Foam on front crest
     const fl = layers[layers.length - 1]
     foam.forEach(f => {
-      const y = waveY(fl, f.x, t)
-      const pulse = 0.5 + 0.5 * Math.sin(t * 3 + f.phase)
-      SCX.beginPath()
-      SCX.arc(f.x, y - f.r, f.r, 0, Math.PI * 2)
-      SCX.fillStyle = `rgba(224,242,254,${f.op * pulse})`
-      SCX.fill()
+      const y = waveY(f.x, t, fl.yBase, fl.amp, fl.period, fl.spd)
+      const p = 0.45 + 0.55 * Math.sin(t * 3 + f.phase)
+      SCX.beginPath(); SCX.arc(f.x, y - 1.5, f.r, 0, Math.PI * 2)
+      SCX.fillStyle = `rgba(220,245,255,${f.op * p})`; SCX.fill()
+    })
+
+    // Splashes — gravity arc
+    splashes.forEach((p, i) => {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= p.decay
+      if (p.life <= 0) splashes[i] = mkSplash()
+      SCX.beginPath(); SCX.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+      SCX.fillStyle = `rgba(186,230,253,${p.life * 0.6})`; SCX.fill()
     })
 
     sceneRaf = requestAnimationFrame(tick)
