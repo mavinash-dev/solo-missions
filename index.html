@@ -1347,15 +1347,22 @@ function startSoundScene(type) {
   if (!soundOn) return
   if (type === currentSceneType) return
   currentSceneType = type
+  // ensureCtx() must run synchronously — Safari only allows AudioContext
+  // resume inside the originating user-gesture call stack.
   const ctx = ensureCtx()
   killSound(true)
+  // Small delay for crossfade, but ctx is already unlocked above
   setTimeout(() => {
     if (!soundOn) return
     if (type === 'embers') playEmbers(ctx)
     else if (type === 'stars') playStars(ctx)
     else if (type === 'ocean') playOcean(ctx)
-  }, 400)
+  }, 350)
 }
+
+// Safari: resume the context on any user interaction so it's always unlocked
+document.addEventListener('touchstart', () => { audioCtx?.resume() }, { once: false, passive: true })
+document.addEventListener('click',      () => { audioCtx?.resume() }, { once: false, passive: true })
 
 function setSoundBtns(on) {
   document.querySelectorAll('.sound-btn').forEach(b => b.textContent = on ? '🔊' : '🔇')
