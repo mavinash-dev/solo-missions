@@ -670,7 +670,6 @@ function finishOnboard() {
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 function loadDashboard(name) {
-  document.getElementById('nav-name').textContent = name
   const first = name.split(' ')[0]
   document.getElementById('hero-title').innerHTML = `Your missions, <span style="color:var(--accent)">${first}</span>.`
   renderList()
