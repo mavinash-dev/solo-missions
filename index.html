@@ -38,79 +38,11 @@
       line-height: 1.5;
     }
 
-    /* ── Waterfall (top) ── */
-    #bg-waterfall {
-      position: fixed; top: 0; left: 0; right: 0; height: 52vh;
-      pointer-events: none; z-index: 0; overflow: hidden;
-      background: linear-gradient(180deg,
-        rgba(56,189,248,0.18) 0%,
-        rgba(14,165,233,0.07) 55%,
-        transparent 100%
-      );
+    /* ── Scene canvas ── */
+    #scene-canvas {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
     }
-    #bg-waterfall::after {
-      content: '';
-      position: absolute; inset: 0;
-      background: repeating-linear-gradient(180deg,
-        transparent            0px,
-        transparent            10px,
-        rgba(186,230,253,0.05) 12px,
-        rgba(125,211,252,0.09) 14px,
-        rgba(186,230,253,0.05) 16px,
-        transparent            18px
-      );
-      background-size: 100% 36px;
-      animation: waterfall 1.6s linear infinite;
-      -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 100%);
-      mask-image:         linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 100%);
-    }
-    @keyframes waterfall {
-      from { background-position: 0 0; }
-      to   { background-position: 0 36px; }
-    }
-
-    /* ── Sea shore (bottom) ── */
-    #bg-seashore {
-      position: fixed; bottom: 0; left: 0; right: 0; height: 48vh;
-      pointer-events: none; z-index: 0; overflow: hidden;
-      background: linear-gradient(0deg,
-        rgba(20,184,166,0.15) 0%,
-        rgba(6,182,212,0.05)  45%,
-        transparent 100%
-      );
-    }
-    #bg-seashore::before {
-      content: '';
-      position: absolute;
-      bottom: -24px; left: -6%; right: -6%;
-      height: 130px;
-      background: radial-gradient(ellipse 100% 80% at 50% 100%,
-        rgba(20,184,166,0.22) 0%, transparent 70%
-      );
-      border-radius: 50%;
-      animation: wave-a 7s ease-in-out infinite alternate;
-    }
-    #bg-seashore::after {
-      content: '';
-      position: absolute;
-      bottom: 18px; left: -10%; right: -10%;
-      height: 100px;
-      background: radial-gradient(ellipse 100% 80% at 50% 100%,
-        rgba(56,189,248,0.12) 0%, transparent 70%
-      );
-      border-radius: 50%;
-      animation: wave-b 9.5s ease-in-out infinite alternate;
-    }
-    @keyframes wave-a {
-      from { transform: translateX(-2.5%) scaleX(1)    scaleY(1);    }
-      to   { transform: translateX(2.5%)  scaleX(1.05) scaleY(1.18); }
-    }
-    @keyframes wave-b {
-      from { transform: translateX(3%)    scaleX(1)    scaleY(1);    }
-      to   { transform: translateX(-3%)   scaleX(1.07) scaleY(0.88); }
-    }
-
-    /* all content sits above backgrounds */
     .screen, #completion-overlay { position: relative; z-index: 1; }
 
     /* ── Typography ── */
@@ -470,8 +402,7 @@
 </head>
 <body>
 
-<div id="bg-waterfall" aria-hidden="true"></div>
-<div id="bg-seashore"  aria-hidden="true"></div>
+<canvas id="scene-canvas" aria-hidden="true"></canvas>
 
 <!-- ═══════════════════ ONBOARDING ═══════════════════ -->
 <section id="screen-onboard" class="screen active">
@@ -705,6 +636,9 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
   document.getElementById(id).classList.add('active')
   window.scrollTo({ top: 0 })
+  resizeScene()
+  if (id === 'screen-dashboard' || id === 'screen-onboard') startEmbers()
+  // detail scene is started in openDetail after mission type is known
 }
 
 // ── Onboarding ─────────────────────────────────────────────────────────────
@@ -800,6 +734,9 @@ function openDetail(id) {
   document.getElementById('detail-nav-title').textContent = activeMission.title
   renderDetail()
   showScreen('screen-detail')
+  // Override scene based on mission type — after showScreen sets embers
+  if (activeMission.type === 'oneshot') startWaterfall()
+  else startOcean()
 }
 
 function renderDetail() {
@@ -1064,6 +1001,7 @@ function launchConfetti() {
 }
 
 function showCompletion(mission) {
+  stopScene()
   const user = getUser()
   const firstName = (user?.name || 'You').split(' ')[0]
 
@@ -1082,6 +1020,221 @@ coClose.addEventListener('click', () => {
   renderList()
   showScreen('screen-dashboard')
 })
+
+// ── Scene canvas engine ────────────────────────────────────────────────────
+const SC  = document.getElementById('scene-canvas')
+const SCX = SC.getContext('2d')
+let sceneRaf = null
+
+function resizeScene() {
+  SC.width  = window.innerWidth
+  SC.height = window.innerHeight
+}
+window.addEventListener('resize', resizeScene)
+resizeScene()
+
+function stopScene() {
+  cancelAnimationFrame(sceneRaf)
+  sceneRaf = null
+  SCX.clearRect(0, 0, SC.width, SC.height)
+}
+
+// ── 1. EMBERS — dashboard list ─────────────────────────────────────────────
+// Slow rising sparks/fireflies drifting up from the bottom
+function startEmbers() {
+  stopScene()
+  const W = SC.width, H = SC.height
+  const count = Math.min(70, Math.floor(W / 12))
+  const embers = Array.from({ length: count }, () => mkEmber(W, H, true))
+
+  function mkEmber(W, H, random) {
+    return {
+      x:     Math.random() * W,
+      y:     random ? Math.random() * H : H + 10,
+      r:     0.8 + Math.random() * 2.2,
+      vy:    -(0.3 + Math.random() * 0.7),
+      vx:    (Math.random() - 0.5) * 0.4,
+      life:  Math.random(),
+      decay: 0.002 + Math.random() * 0.003,
+      hue:   195 + Math.random() * 30,     // ice-blue range
+    }
+  }
+
+  function tick() {
+    SCX.clearRect(0, 0, W, H)
+    embers.forEach((e, i) => {
+      e.x += e.vx + Math.sin(Date.now() * 0.0008 + i) * 0.15
+      e.y += e.vy
+      e.life -= e.decay
+      if (e.life <= 0 || e.y < -10) embers[i] = mkEmber(W, H, false)
+      const a = e.life * 0.55
+      SCX.beginPath()
+      SCX.arc(e.x, e.y, e.r, 0, Math.PI * 2)
+      SCX.fillStyle = `hsla(${e.hue},90%,75%,${a})`
+      SCX.fill()
+      // soft glow ring
+      const g = SCX.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * 4)
+      g.addColorStop(0, `hsla(${e.hue},90%,70%,${a * 0.3})`)
+      g.addColorStop(1, `hsla(${e.hue},90%,70%,0)`)
+      SCX.beginPath()
+      SCX.arc(e.x, e.y, e.r * 4, 0, Math.PI * 2)
+      SCX.fillStyle = g
+      SCX.fill()
+    })
+    sceneRaf = requestAnimationFrame(tick)
+  }
+  sceneRaf = requestAnimationFrame(tick)
+}
+
+// ── 2. WATERFALL — one-shot detail ─────────────────────────────────────────
+function startWaterfall() {
+  stopScene()
+  const W = SC.width, H = SC.height
+
+  const streamCount = Math.max(18, Math.floor(W / 28))
+  const streams = Array.from({ length: streamCount }, (_, i) => ({
+    x:    (W / streamCount) * i + (Math.random() - 0.5) * 24,
+    y:    -(Math.random() * H),
+    len:  H * (0.25 + Math.random() * 0.55),
+    spd:  1.8 + Math.random() * 2.8,
+    w:    0.8 + Math.random() * 3.5,
+    op:   0.12 + Math.random() * 0.30,
+    wob:  Math.random() * Math.PI * 2,
+    wobS: 0.012 + Math.random() * 0.018,
+    wobA: 1.5 + Math.random() * 4,
+  }))
+
+  const mistCount = Math.floor(W / 8)
+  const mist = Array.from({ length: mistCount }, () => mkMist(W, H, true))
+
+  function mkMist(W, H, rand) {
+    return {
+      x:  Math.random() * W,
+      y:  rand ? H * 0.4 + Math.random() * H * 0.6 : H - 5,
+      r:  0.8 + Math.random() * 3,
+      op: 0.06 + Math.random() * 0.18,
+      vx: (Math.random() - 0.5) * 0.7,
+      vy: -(0.2 + Math.random() * 0.9),
+      life: 0.6 + Math.random() * 0.4,
+      decay: 0.004 + Math.random() * 0.007,
+    }
+  }
+
+  function tick() {
+    SCX.clearRect(0, 0, W, H)
+
+    streams.forEach(s => {
+      s.wob += s.wobS
+      s.y   += s.spd
+      if (s.y > H + s.len) { s.y = -s.len * Math.random(); s.wob = Math.random() * Math.PI * 2 }
+
+      const dx = Math.sin(s.wob) * s.wobA
+      const g  = SCX.createLinearGradient(s.x, s.y, s.x, s.y + s.len)
+      g.addColorStop(0,    `rgba(186,230,253,0)`)
+      g.addColorStop(0.08, `rgba(186,230,253,${s.op})`)
+      g.addColorStop(0.45, `rgba(125,211,252,${s.op * 0.85})`)
+      g.addColorStop(0.80, `rgba(56,189,248,${s.op * 0.55})`)
+      g.addColorStop(1,    `rgba(56,189,248,0)`)
+
+      SCX.beginPath()
+      SCX.moveTo(s.x + dx, s.y)
+      SCX.bezierCurveTo(
+        s.x - dx * 0.6, s.y + s.len * 0.28,
+        s.x + dx * 0.8, s.y + s.len * 0.62,
+        s.x - dx * 0.3, s.y + s.len
+      )
+      SCX.lineWidth   = s.w
+      SCX.strokeStyle = g
+      SCX.stroke()
+    })
+
+    mist.forEach((p, i) => {
+      p.x += p.vx; p.y += p.vy; p.life -= p.decay
+      if (p.life <= 0) mist[i] = mkMist(W, H, false)
+      SCX.beginPath()
+      SCX.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+      SCX.fillStyle = `rgba(186,230,253,${p.op * p.life})`
+      SCX.fill()
+    })
+
+    sceneRaf = requestAnimationFrame(tick)
+  }
+  sceneRaf = requestAnimationFrame(tick)
+}
+
+// ── 3. OCEAN WAVES — daily detail ─────────────────────────────────────────
+function startOcean() {
+  stopScene()
+  const W = SC.width, H = SC.height
+  let t = 0
+
+  // Wave layers — back to front
+  const layers = [
+    { yOff: 0.62, amp: 22, wave1: 320, wave2: 200, spd: 0.45, fill: 'rgba(6,182,212,0.10)',  line: 'rgba(34,211,238,0.20)' },
+    { yOff: 0.69, amp: 18, wave1: 260, wave2: 160, spd: 0.60, fill: 'rgba(8,145,178,0.12)',  line: 'rgba(56,189,248,0.22)' },
+    { yOff: 0.76, amp: 14, wave1: 200, wave2: 130, spd: 0.80, fill: 'rgba(14,116,144,0.14)', line: 'rgba(103,232,249,0.28)' },
+    { yOff: 0.83, amp: 10, wave1: 150, wave2: 100, spd: 1.05, fill: 'rgba(20,184,166,0.16)', line: 'rgba(45,212,191,0.32)' },
+    { yOff: 0.90, amp:  6, wave1: 110, wave2:  75, spd: 1.40, fill: 'rgba(6,182,212,0.20)',  line: 'rgba(125,211,252,0.38)' },
+  ]
+
+  function waveY(l, x, t) {
+    return H * l.yOff
+      + Math.sin((x / l.wave1) + t * l.spd)                     * l.amp
+      + Math.sin((x / l.wave2) - t * l.spd * 0.73 + 1.2)        * l.amp * 0.38
+      + Math.cos((x / (l.wave1 * 1.5)) + t * l.spd * 0.5 + 0.7) * l.amp * 0.22
+  }
+
+  function drawLayer(l, t) {
+    SCX.beginPath()
+    SCX.moveTo(0, H)
+    for (let x = 0; x <= W + 4; x += 3) SCX.lineTo(x, waveY(l, x, t))
+    SCX.lineTo(W, H)
+    SCX.closePath()
+    SCX.fillStyle = l.fill
+    SCX.fill()
+
+    // crest line
+    SCX.beginPath()
+    for (let x = 0; x <= W + 4; x += 3) {
+      const y = waveY(l, x, t)
+      x === 0 ? SCX.moveTo(x, y) : SCX.lineTo(x, y)
+    }
+    SCX.lineWidth   = 1.5
+    SCX.strokeStyle = l.line
+    SCX.stroke()
+  }
+
+  // Foam dots on the front wave crest
+  const foamCount = Math.floor(W / 14)
+  const foam = Array.from({ length: foamCount }, (_, i) => ({
+    x: (W / foamCount) * i + Math.random() * 12,
+    phase: Math.random() * Math.PI * 2,
+    r: 0.8 + Math.random() * 1.8,
+    op: 0.25 + Math.random() * 0.45,
+  }))
+
+  function tick() {
+    SCX.clearRect(0, 0, W, H)
+    t += 0.016
+
+    // draw back-to-front
+    for (let i = 0; i < layers.length; i++) drawLayer(layers[i], t)
+
+    // foam on front crest
+    const fl = layers[layers.length - 1]
+    foam.forEach(f => {
+      const y = waveY(fl, f.x, t)
+      const pulse = 0.5 + 0.5 * Math.sin(t * 3 + f.phase)
+      SCX.beginPath()
+      SCX.arc(f.x, y - f.r, f.r, 0, Math.PI * 2)
+      SCX.fillStyle = `rgba(224,242,254,${f.op * pulse})`
+      SCX.fill()
+    })
+
+    sceneRaf = requestAnimationFrame(tick)
+  }
+  sceneRaf = requestAnimationFrame(tick)
+}
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 const user = getUser()
