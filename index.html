@@ -321,7 +321,11 @@
     /* ══════════════════ COMPLETION OVERLAY ══════════════════ */
     #completion-overlay {
       position: fixed; inset: 0; z-index: 100;
-      background: rgba(0,0,0,0.96);
+      background: radial-gradient(ellipse 80% 70% at 50% 55%,
+        rgba(8,24,36,0.97) 0%,
+        rgba(4,10,18,0.99) 60%,
+        rgba(2,6,12,1) 100%
+      );
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       padding: 32px 24px;
@@ -640,13 +644,26 @@ function loadDashboard(name) {
   renderList()
 }
 
+function missionSortKey(m) {
+  // 0 = gap (needs attention), 1 = active in-progress, 2 = not started, 3 = done
+  if (isMissionDone(m)) return 3
+  if (missionHasGap(m)) return 0
+  if (m.type === 'daily') {
+    const a = analyzeDailyMission(m)
+    return a.notStarted ? 2 : 1
+  }
+  return 2
+}
+
 function renderList() {
   const list = document.getElementById('missions-list')
   const doneCount = MISSIONS.filter(m => isMissionDone(m)).length
   document.getElementById('stat-done').textContent = doneCount
   list.innerHTML = ''
 
-  MISSIONS.forEach(m => {
+  const sorted = [...MISSIONS].sort((a, b) => missionSortKey(a) - missionSortKey(b))
+
+  sorted.forEach(m => {
     const done = isMissionDone(m)
     const gap  = missionHasGap(m)
     let pct    = 0
@@ -877,16 +894,6 @@ function renderOneshotSection(m, body) {
     body.appendChild(btn)
   }
 
-  const rl = document.createElement('button')
-  rl.className = 'reset-link'
-  rl.textContent = 'Reset this mission'
-  rl.addEventListener('click', () => {
-    if (confirm(`Reset "${m.title}"?`)) {
-      saveP(m.id, { completed: false, completedAt: null })
-      renderDetail()
-    }
-  })
-  body.appendChild(rl)
 }
 
 // ── Completion celebration ─────────────────────────────────────────────────
@@ -965,7 +972,17 @@ coClose.addEventListener('click', () => {
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 const user = getUser()
-if (user && user.name) {
+const qWin = new URLSearchParams(location.search).get('win')
+
+if (qWin) {
+  // ?win=<missionId>  →  preview the completion animation (dev/demo use)
+  const previewMission = MISSIONS.find(m => m.id === qWin) || MISSIONS[0]
+  if (!user) saveUser({ name: 'You' })
+  loadDashboard((user?.name) || 'You')
+  showScreen('screen-dashboard')
+  // slight delay so the dashboard renders first, making the overlay dismissal feel right
+  setTimeout(() => showCompletion(previewMission), 300)
+} else if (user && user.name) {
   loadDashboard(user.name)
   showScreen('screen-dashboard')
 } else {
