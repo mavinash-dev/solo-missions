@@ -154,7 +154,7 @@
       z-index: 10;
     }
     .nav-brand .eyebrow { color: var(--accent); margin-bottom: 2px; }
-    .nav-name { font-size: 15px; font-weight: 700; color: var(--fg); }
+    .nav-name { font-size: 15px; font-weight: 700; color: var(--accent); }
     .stat-pill {
       font-size: 13px; font-weight: 600;
       color: var(--fg-muted);
@@ -672,7 +672,8 @@ function finishOnboard() {
 // ── Dashboard ──────────────────────────────────────────────────────────────
 function loadDashboard(name) {
   document.getElementById('nav-name').textContent = name
-  document.getElementById('hero-title').textContent = `Your missions, ${name.split(' ')[0]}.`
+  const first = name.split(' ')[0]
+  document.getElementById('hero-title').innerHTML = `Your missions, <span style="color:var(--accent)">${first}</span>.`
   renderList()
 }
 
