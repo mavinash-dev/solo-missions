@@ -317,6 +317,64 @@
       opacity: 0.55; width: 100%;
     }
     .reset-link:hover { opacity: 1; color: var(--danger); }
+
+    /* ══════════════════ COMPLETION OVERLAY ══════════════════ */
+    #completion-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.96);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 32px 24px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+    #completion-overlay.visible {
+      opacity: 1; pointer-events: all;
+    }
+    #completion-canvas {
+      position: absolute; inset: 0;
+      pointer-events: none;
+    }
+    .co-inner {
+      position: relative; z-index: 2;
+      display: flex; flex-direction: column;
+      align-items: center; text-align: center;
+      gap: 20px; max-width: 380px; width: 100%;
+      transform: scale(0.88) translateY(20px);
+      transition: transform 0.45s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    #completion-overlay.visible .co-inner {
+      transform: scale(1) translateY(0);
+    }
+    .co-seal {
+      width: 110px; height: 110px; border-radius: 50%;
+      background: var(--accent-tint);
+      border: 2px solid rgba(56,189,248,0.5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 52px;
+      box-shadow: 0 0 0 8px rgba(56,189,248,0.08), 0 0 60px rgba(56,189,248,0.25);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 0 8px rgba(56,189,248,0.08), 0 0 40px rgba(56,189,248,0.2); }
+      50%       { box-shadow: 0 0 0 14px rgba(56,189,248,0.12), 0 0 80px rgba(56,189,248,0.35); }
+    }
+    .co-eyebrow { color: var(--accent); letter-spacing: 0.2em; }
+    .co-name {
+      font-size: clamp(1.7rem, 7vw, 2.4rem);
+      font-weight: 800; letter-spacing: -0.04em;
+      color: var(--fg); line-height: 1.1;
+    }
+    .co-name em { color: var(--accent); font-style: normal; }
+    .co-message {
+      font-size: 15px; color: var(--fg-muted);
+      line-height: 1.75; max-width: 320px;
+    }
+    .co-message strong { color: var(--fg); font-weight: 600; }
+    .co-close {
+      margin-top: 8px;
+      width: 100%; max-width: 280px;
+    }
   </style>
 </head>
 <body>
@@ -361,6 +419,18 @@
   <div class="detail-body" id="detail-body"></div>
 </section>
 
+<!-- ═══════════════════ COMPLETION OVERLAY ═══════════════════ -->
+<div id="completion-overlay">
+  <canvas id="completion-canvas"></canvas>
+  <div class="co-inner">
+    <div class="co-seal" id="co-seal"></div>
+    <p class="eyebrow co-eyebrow">Mission Complete</p>
+    <h2 class="co-name" id="co-name"></h2>
+    <p class="co-message" id="co-message"></p>
+    <button class="btn btn-primary btn-lg co-close" id="co-close">Back to missions →</button>
+  </div>
+</div>
+
 <script>
 // ── Mission definitions ────────────────────────────────────────────────────
 const MISSIONS = [
@@ -370,6 +440,7 @@ const MISSIONS = [
     sub: 'One long walk. No music, no distractions.',
     desc: 'No music, no podcasts, no distractions. Just you and your thoughts for an entire long-distance walk. Most people cannot handle their own mind that long. Prove you can.',
     type: 'oneshot', badge: 'One shot',
+    win: (name) => `<strong>${name},</strong> you just walked 40km with nothing but your own mind for company. Most people can't handle 40 <em>minutes</em> of silence. You did it for miles. That's not a walk — that's a reckoning.`,
   },
   {
     id: 'sugar', icon: '🚫',
@@ -377,6 +448,7 @@ const MISSIONS = [
     sub: '21 days. No cheats, no "just this once".',
     desc: 'No sugar for 21 days — no cheat days, no exceptions. Watch how fast your brain starts begging. You are more addicted than you think. Cut the chemical. Own the craving.',
     type: 'daily', days: 21, badge: '21 days',
+    win: (name) => `<strong>${name},</strong> 21 days clean. Your brain begged. It whined. It threw a full tantrum on Day 3. And you said <em>no</em> every single time. The craving didn't beat you — you beat it.`,
   },
   {
     id: 'silence', icon: '🔕',
@@ -384,6 +456,7 @@ const MISSIONS = [
     sub: '7 days. No music, no hype. Just effort.',
     desc: 'Work out every day for 7 days with zero audio. No hype, no pump-up tracks. If you need noise to perform, you are weak. Learn to generate your own intensity.',
     type: 'daily', days: 7, badge: '7 days',
+    win: (name) => `<strong>${name},</strong> 7 sessions. No music, no hype, no crutch. You learned what most athletes never figure out — the fire was <em>inside you</em> the entire time. The playlist was just noise.`,
   },
   {
     id: 'wakeup', icon: '⏰',
@@ -391,6 +464,7 @@ const MISSIONS = [
     sub: '30 days. No snooze. No exceptions.',
     desc: 'Up at 5AM every day for 30 days. No snooze, no delay. Discipline is not built at night — it is built in the morning before the world wakes up.',
     type: 'daily', days: 30, badge: '30 days',
+    win: (name) => `<strong>${name},</strong> 30 mornings at 5AM. That's 30 hours you took back while everyone else was still dreaming. You didn't find discipline — you <em>built</em> it, one alarm at a time.`,
   },
   {
     id: 'nosocial', icon: '📵',
@@ -398,6 +472,7 @@ const MISSIONS = [
     sub: '7 days. No likes, no scrolling, no validation.',
     desc: 'No social media for 7 days. No Instagram, X, TikTok, Reddit — nothing. Watch your brain panic when it has no feed to scroll. That panic is dependency. Face it.',
     type: 'daily', days: 7, badge: '7 days',
+    win: (name) => `<strong>${name},</strong> 7 days offline. Nobody liked your posts. Nobody validated you. And you were completely fine. You were <em>never</em> dependent on it — you just believed you were. Now you know.`,
   },
   {
     id: 'shower', icon: '🧊',
@@ -405,6 +480,7 @@ const MISSIONS = [
     sub: '30 days. No warm finish. Control your breath.',
     desc: 'Cold showers only for 30 days. No warm water to finish. The moment it hits you — control your breath. Control your breath, control your mind.',
     type: 'daily', days: 30, badge: '30 days',
+    win: (name) => `<strong>${name},</strong> 30 days of cold water hitting you first thing every morning. Every instinct screamed "run" and you stood there anyway. <em>That's</em> what self-control actually feels like in the body.`,
   },
   {
     id: 'nophone', icon: '📴',
@@ -412,6 +488,7 @@ const MISSIONS = [
     sub: 'One full day. No notifications, no dopamine.',
     desc: 'Phone away for 24 straight hours. No notifications, no dopamine hits, no quick checks. The silence will feel deeply uncomfortable. That is how distracted you have become.',
     type: 'oneshot', badge: 'One shot',
+    win: (name) => `<strong>${name},</strong> 24 hours with no phone. The world kept moving without your constant attention. The notifications survived without you. Turns out — <em>so did you.</em>`,
   },
   {
     id: 'book', icon: '📖',
@@ -419,6 +496,7 @@ const MISSIONS = [
     sub: 'Start and finish a full book in 24 hours.',
     desc: 'Read an entire book in a single day. No phones, no multi-tasking, no "I\'ll finish it later". Sit down, lock in, finish it. Prove your attention span still exists.',
     type: 'oneshot', badge: 'One shot',
+    win: (name) => `<strong>${name},</strong> one book, one day, start to finish. The average person hasn't finished a single book this year. You just did it in a <em>day.</em> Your focus isn't broken — it was just untrained.`,
   },
   {
     id: 'alone', icon: '🚶',
@@ -426,6 +504,7 @@ const MISSIONS = [
     sub: 'No safety net. Just presence.',
     desc: 'Go to a public place — café, park, restaurant — alone and without your phone. No safety net. Sit with yourself. Confidence is built in exactly these moments.',
     type: 'oneshot', badge: 'One shot',
+    win: (name) => `<strong>${name},</strong> you walked into a room full of strangers with no phone, no distraction, no escape hatch — and you sat there. That discomfort you felt was <em>confidence being forged.</em>`,
   },
   {
     id: 'sleep', icon: '🌙',
@@ -433,6 +512,7 @@ const MISSIONS = [
     sub: '30 nights. Lights out before 10. No screens.',
     desc: 'In bed, lights off, no screens — before 10PM every night for 30 days. Late nights are stolen mornings. Fix your sleep, fix your output. This is the foundation.',
     type: 'daily', days: 30, badge: '30 days',
+    win: (name) => `<strong>${name},</strong> 30 nights of choosing tomorrow over tonight. Every single night. You gave your brain the recovery it was silently begging for. <em>This</em> is the foundation everything else sits on.`,
   },
 ]
 
@@ -733,6 +813,9 @@ function renderDailySection(m, body) {
         const p = dailyP(m.id)
         p.checkedDates.push(row.dStr)
         saveP(m.id, p)
+        // Check if this was the final day
+        const updated = analyzeDailyMission(m)
+        if (updated.done) { showCompletion(m); return }
         renderDetail()
       })
     }
@@ -789,7 +872,7 @@ function renderOneshotSection(m, body) {
     btn.textContent = 'Mark as Done ✓'
     btn.addEventListener('click', () => {
       saveP(m.id, { completed: true, completedAt: new Date().toISOString() })
-      renderDetail()
+      showCompletion(m)
     })
     body.appendChild(btn)
   }
@@ -805,6 +888,80 @@ function renderOneshotSection(m, body) {
   })
   body.appendChild(rl)
 }
+
+// ── Completion celebration ─────────────────────────────────────────────────
+const overlay    = document.getElementById('completion-overlay')
+const coCanvas   = document.getElementById('completion-canvas')
+const coSeal     = document.getElementById('co-seal')
+const coName     = document.getElementById('co-name')
+const coMessage  = document.getElementById('co-message')
+const coClose    = document.getElementById('co-close')
+
+let confettiRaf  = null
+let confettiPcs  = []
+
+const CONFETTI_COLORS = ['#38bdf8','#7dd3fc','#bae6fd','#ffffff','#e0f2fe','#0ea5e9','#93c5fd']
+
+function launchConfetti() {
+  const canvas = coCanvas
+  canvas.width  = window.innerWidth
+  canvas.height = window.innerHeight
+  const ctx = canvas.getContext('2d')
+
+  confettiPcs = Array.from({ length: 110 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -10 - Math.random() * 80,
+    w: 6 + Math.random() * 8,
+    h: 3 + Math.random() * 5,
+    color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+    vx: (Math.random() - 0.5) * 2.5,
+    vy: 2.5 + Math.random() * 3.5,
+    angle: Math.random() * Math.PI * 2,
+    spin: (Math.random() - 0.5) * 0.18,
+    opacity: 0.85 + Math.random() * 0.15,
+  }))
+
+  cancelAnimationFrame(confettiRaf)
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    let alive = false
+    confettiPcs.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.angle += p.spin
+      p.opacity -= 0.003
+      if (p.y < canvas.height && p.opacity > 0) alive = true
+      ctx.save()
+      ctx.globalAlpha = Math.max(0, p.opacity)
+      ctx.translate(p.x, p.y)
+      ctx.rotate(p.angle)
+      ctx.fillStyle = p.color
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h)
+      ctx.restore()
+    })
+    if (alive) confettiRaf = requestAnimationFrame(tick)
+    else ctx.clearRect(0, 0, canvas.width, canvas.height)
+  }
+  confettiRaf = requestAnimationFrame(tick)
+}
+
+function showCompletion(mission) {
+  const user = getUser()
+  const firstName = (user?.name || 'You').split(' ')[0]
+
+  coSeal.textContent    = mission.icon
+  coName.innerHTML      = `You did it.`
+  coMessage.innerHTML   = mission.win(firstName)
+
+  overlay.classList.add('visible')
+  launchConfetti()
+}
+
+coClose.addEventListener('click', () => {
+  overlay.classList.remove('visible')
+  cancelAnimationFrame(confettiRaf)
+  coCanvas.getContext('2d').clearRect(0, 0, coCanvas.width, coCanvas.height)
+  renderList()
+  showScreen('screen-dashboard')
+})
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 const user = getUser()
