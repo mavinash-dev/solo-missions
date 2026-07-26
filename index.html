@@ -1157,21 +1157,22 @@ function startOcean() {
   const W = SC.width, H = SC.height
   let t = 0
 
-  // Foam sweep: a feathered horizontal smear that drifts up and fades
-  function mkSweep(randomY) {
-    const w = W * (0.18 + Math.random() * 0.50)
+  // Foam sweep: always spawns at a random Y in the water zone so the upper
+  // portion stays populated after the first batch cycles out.
+  function mkSweep() {
+    const w = W * (0.16 + Math.random() * 0.52)
     return {
       cx:    Math.random() * W,
-      y:     randomY ? H * 0.35 + Math.random() * H * 0.65 : H + 4,
+      y:     H * 0.28 + Math.random() * H * 0.72,
       w,
-      vy:    -(0.12 + Math.random() * 0.28),
+      vy:    -(0.10 + Math.random() * 0.24),
       life:  0,
-      mLife: 90 + Math.random() * 130,
-      op:    0.07 + Math.random() * 0.11,
-      thick: 2 + Math.random() * 3,
+      mLife: 75 + Math.random() * 110,
+      op:    0.07 + Math.random() * 0.12,
+      thick: 2 + Math.random() * 3.5,
     }
   }
-  const sweeps = Array.from({ length: 14 }, () => mkSweep(true))
+  const sweeps = Array.from({ length: 16 }, () => mkSweep())
 
   function tick() {
     SCX.clearRect(0, 0, W, H)
@@ -1202,7 +1203,7 @@ function startOcean() {
     sweeps.forEach((s, i) => {
       s.y += s.vy
       s.life++
-      if (s.life > s.mLife) sweeps[i] = mkSweep(false)
+      if (s.life > s.mLife) sweeps[i] = mkSweep()
       // Sine envelope — fades in then out naturally
       const alpha = s.op * Math.sin((s.life / s.mLife) * Math.PI)
 
