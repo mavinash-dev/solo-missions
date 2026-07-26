@@ -163,14 +163,6 @@
       border-radius: 999px; padding: 6px 14px;
     }
     .stat-pill em { color: var(--accent); font-style: normal; }
-    .sound-btn {
-      background: none; border: 1px solid var(--border-subtle);
-      border-radius: 8px; padding: 6px 10px; cursor: pointer;
-      font-size: 16px; line-height: 1; color: var(--fg-muted);
-      transition: border-color 120ms, background 120ms;
-    }
-    .sound-btn:hover { background: var(--elevated); border-color: var(--border-default); }
-
     .dashboard-hero {
       padding: 36px 20px 24px;
       max-width: 600px; margin: 0 auto; width: 100%;
@@ -441,10 +433,7 @@
       <p class="eyebrow">⚡ Solo Missions</p>
       <p class="nav-name" id="nav-name"></p>
     </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="stat-pill"><em id="stat-done">0</em> / 10 done</div>
-      <button class="sound-btn" id="sound-btn-dash" title="Toggle sound">🔇</button>
-    </div>
+    <div class="stat-pill"><em id="stat-done">0</em> / 10 done</div>
   </nav>
   <div class="dashboard-hero">
     <h1 class="display" id="hero-title">Your missions.</h1>
@@ -458,7 +447,6 @@
   <nav class="detail-nav">
     <button class="btn btn-ghost btn-sm" id="back-btn">← Back</button>
     <p class="detail-nav-title" id="detail-nav-title" style="flex:1"></p>
-    <button class="sound-btn" id="sound-btn-detail" title="Toggle sound">🔇</button>
   </nav>
   <div class="detail-body" id="detail-body"></div>
 </section>
@@ -658,7 +646,6 @@ function showScreen(id) {
   resizeScene()
   if (id === 'screen-dashboard' || id === 'screen-onboard') {
     startEmbers()
-    startSoundScene('embers')
   }
 }
 
@@ -756,8 +743,8 @@ function openDetail(id) {
   renderDetail()
   showScreen('screen-detail')
   // Override scene based on mission type — after showScreen sets embers
-  if (activeMission.type === 'oneshot') { startShootingStars(); startSoundScene('stars') }
-  else { startOcean(); startSoundScene('ocean') }
+  if (activeMission.type === 'oneshot') { startShootingStars() }
+  else { startOcean() }
 }
 
 function renderDetail() {
@@ -1238,162 +1225,6 @@ function startOcean() {
   }
   sceneRaf = requestAnimationFrame(tick)
 }
-
-// ── Sound engine ──────────────────────────────────────────────────────────
-let audioCtx    = null
-let soundOn     = false
-let soundNodes  = []
-let currentSceneType = null
-
-function ensureCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-  if (audioCtx.state === 'suspended') audioCtx.resume()
-  return audioCtx
-}
-
-function makeNoise(ctx) {
-  const frames = ctx.sampleRate * 4
-  const buf    = ctx.createBuffer(1, frames, ctx.sampleRate)
-  const d      = buf.getChannelData(0)
-  for (let i = 0; i < frames; i++) d[i] = Math.random() * 2 - 1
-  const src = ctx.createBufferSource()
-  src.buffer = buf; src.loop = true
-  return src
-}
-
-function fadeGain(node, ctx, target, dur) {
-  node.gain.cancelScheduledValues(ctx.currentTime)
-  node.gain.setTargetAtTime(target, ctx.currentTime, dur / 4)
-}
-
-function killSound(fast) {
-  const ctx = audioCtx
-  soundNodes.forEach(n => {
-    if (n.gain) fadeGain(n, ctx, 0, fast ? 0.3 : 1.2)
-  })
-  const nodes = soundNodes
-  setTimeout(() => {
-    nodes.forEach(n => { try { n.stop?.(); n.disconnect() } catch(e){} })
-  }, fast ? 500 : 1800)
-  soundNodes = []
-}
-
-// ── Embers: soft low hiss — like glowing coals, a quiet room ──
-function playEmbers(ctx) {
-  const noise  = makeNoise(ctx)
-  const lpf    = ctx.createBiquadFilter()
-  lpf.type = 'lowpass'; lpf.frequency.value = 200; lpf.Q.value = 0.9
-  const master = ctx.createGain(); master.gain.value = 0
-  fadeGain(master, ctx, 0.10, 2)
-
-  noise.connect(lpf); lpf.connect(master); master.connect(ctx.destination)
-  noise.start()
-  soundNodes.push(noise, master)
-}
-
-// ── Stars: deep-space sub drone + sparse high shimmer ──
-function playStars(ctx) {
-  // Sub drone
-  const osc  = ctx.createOscillator()
-  osc.type = 'sine'; osc.frequency.value = 46
-  const vib  = ctx.createOscillator(); vib.frequency.value = 0.04
-  const vibG = ctx.createGain(); vibG.gain.value = 1.2
-  vib.connect(vibG); vibG.connect(osc.frequency)
-  const dG   = ctx.createGain(); dG.gain.value = 0
-  fadeGain(dG, ctx, 0.07, 2.5)
-  osc.connect(dG); dG.connect(ctx.destination)
-
-  // High shimmer
-  const ns   = makeNoise(ctx)
-  const hpf  = ctx.createBiquadFilter()
-  hpf.type = 'highpass'; hpf.frequency.value = 4000; hpf.Q.value = 1.5
-  const shG  = ctx.createGain(); shG.gain.value = 0
-  fadeGain(shG, ctx, 0.025, 3)
-  ns.connect(hpf); hpf.connect(shG); shG.connect(ctx.destination)
-
-  osc.start(); vib.start(); ns.start()
-  soundNodes.push(osc, vib, ns, dG, shG)
-}
-
-// ── Ocean: three bandpass noise layers, each LFO-modulated for wave swell ──
-function playOcean(ctx) {
-  const master = ctx.createGain(); master.gain.value = 0
-  fadeGain(master, ctx, 0.10, 3)
-  master.connect(ctx.destination)
-  soundNodes.push(master)
-
-  ;[
-    { freq: 550,  Q: 0.5, lfoHz: 0.10, vol: 0.30 },
-    { freq: 280,  Q: 0.7, lfoHz: 0.13, vol: 0.25 },
-    { freq: 1100, Q: 0.5, lfoHz: 0.07, vol: 0.14 },
-  ].forEach(l => {
-    const noise = makeNoise(ctx)
-    const bpf   = ctx.createBiquadFilter()
-    bpf.type = 'bandpass'; bpf.frequency.value = l.freq; bpf.Q.value = l.Q
-
-    // Gain midpoint = vol/2, LFO swings ± vol/2 → range 0..vol (never negative)
-    const lGain = ctx.createGain(); lGain.gain.value = l.vol / 2
-    const lfo   = ctx.createOscillator(); lfo.frequency.value = l.lfoHz
-    const lfoG  = ctx.createGain(); lfoG.gain.value = l.vol / 2
-    lfo.connect(lfoG); lfoG.connect(lGain.gain)
-
-    noise.connect(bpf); bpf.connect(lGain); lGain.connect(master)
-    noise.start(); lfo.start()
-    soundNodes.push(noise, lGain, lfo, lfoG)
-  })
-}
-
-function startSoundScene(type) {
-  if (!soundOn) return
-  if (type === currentSceneType) return
-  currentSceneType = type
-  // ensureCtx() must run synchronously — Safari only allows AudioContext
-  // resume inside the originating user-gesture call stack.
-  const ctx = ensureCtx()
-  killSound(true)
-  // Small delay for crossfade, but ctx is already unlocked above
-  setTimeout(() => {
-    if (!soundOn) return
-    if (type === 'embers') playEmbers(ctx)
-    else if (type === 'stars') playStars(ctx)
-    else if (type === 'ocean') playOcean(ctx)
-  }, 350)
-}
-
-// Safari: resume the context on any user interaction so it's always unlocked
-document.addEventListener('touchstart', () => { audioCtx?.resume() }, { once: false, passive: true })
-document.addEventListener('click',      () => { audioCtx?.resume() }, { once: false, passive: true })
-
-function setSoundBtns(on) {
-  document.querySelectorAll('.sound-btn').forEach(b => b.textContent = on ? '🔊' : '🔇')
-}
-
-function toggleSound() {
-  soundOn = !soundOn
-  setSoundBtns(soundOn)
-  if (!soundOn) {
-    currentSceneType = null
-    killSound(false)
-  } else {
-    const id = document.querySelector('.screen.active')?.id
-    if (id === 'screen-dashboard' || id === 'screen-onboard') startSoundScene('embers')
-    else if (activeMission?.type === 'oneshot') startSoundScene('stars')
-    else startSoundScene('ocean')
-  }
-}
-
-document.getElementById('sound-btn-dash').addEventListener('click', toggleSound)
-document.getElementById('sound-btn-detail').addEventListener('click', toggleSound)
-
-// Pause audio when tab hidden or app backgrounded, resume when visible again
-document.addEventListener('visibilitychange', () => {
-  if (!audioCtx || !soundOn) return
-  if (document.hidden) audioCtx.suspend()
-  else audioCtx.resume()
-})
-// Also handle window losing focus on desktop (switching apps)
-window.addEventListener('blur',  () => { if (audioCtx && soundOn) audioCtx.suspend() })
-window.addEventListener('focus', () => { if (audioCtx && soundOn) audioCtx.resume()  })
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 const user = getUser()
